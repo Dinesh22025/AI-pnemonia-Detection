@@ -1,0 +1,41 @@
+# Core
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Database
+sqlalchemy
+psycopg2-binary
+alembic
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+
+# AI/ML
+tensorflow
+tensorflow-hub
+opencv-python
+numpy
+Pillow
+matplotlib
+scikit-learn
+
+# PDF Generation
+reportlab
+qrcode[pil]
+
+# Utilities
+pydantic[email]
+pydantic-settings
+python-dateutil
+gunicorn
+
+# Monitoring
+prometheus-client
+
+# Testing
+pytest
+pytest-asyncio
+httpx
