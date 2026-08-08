@@ -7,6 +7,7 @@ import logging
 import os
 import uuid
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,7 @@ from schemas.prediction import (
     PredictionSummary,
 )
 from middleware.auth import get_current_user, log_audit
+from utils.report_generator import generate_pdf_report
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +120,25 @@ async def upload_and_predict(
     result = mock_predict(image_path)
     processing_time = int((time.time() - start_time) * 1000)
 
+    run_id = uuid.uuid4()
+    report_path = None
+    try:
+        report_path = generate_pdf_report(
+            patient_name=current_user.name,
+            patient_age=current_user.patient.age if hasattr(current_user, 'patient') and current_user.patient else None,
+            patient_gender=current_user.patient.gender if hasattr(current_user, 'patient') and current_user.patient else None,
+            prediction=result["prediction"].value if hasattr(result["prediction"], "value") else str(result["prediction"]),
+            confidence=result["confidence"],
+            probability_normal=result["probability_normal"],
+            probability_pneumonia=result["probability_pneumonia"],
+            gradcam_image_path=result.get("gradcam_image"),
+            doctor_notes=doctor_notes,
+        )
+    except Exception as e:
+        logger.error(f"Report generation failed: {e}")
+
     prediction = Prediction(
+        id=run_id,
         user_id=current_user.id,
         patient_id=current_user.patient.id if hasattr(current_user, 'patient') and current_user.patient else None,
         image_path=image_path,
@@ -132,6 +152,7 @@ async def upload_and_predict(
         model_version=result.get("model_version", "v1.0"),
         processing_time_ms=processing_time,
         doctor_notes=doctor_notes,
+        report_pdf=report_path,
     )
     db.add(prediction)
     db.commit()
@@ -171,22 +192,47 @@ async def get_prediction_history(
     )
 
 
-@router.get("/{prediction_id}", response_model=PredictionResponse)
-async def get_prediction(
-    prediction_id: uuid.UUID,
+@router.get("/stats", response_model=PredictionStats)
+async def get_prediction_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get a specific prediction by ID."""
-    prediction = db.query(Prediction).filter(
-        Prediction.id == prediction_id,
-        Prediction.user_id == current_user.id,
-    ).first()
+    """Get prediction statistics for the dashboard."""
+    predictions = db.query(Prediction).filter(Prediction.user_id == current_user.id).all()
 
-    if not prediction:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prediction not found")
+    total = len(predictions)
+    normal_count = sum(1 for p in predictions if p.prediction == PredictionResult.NORMAL)
+    pneumonia_count = sum(1 for p in predictions if p.prediction == PredictionResult.PNEUMONIA)
+    average_confidence = (
+        sum(p.confidence for p in predictions) / total if total > 0 else 0.0
+    )
+    accuracy = pneumonia_count / total if total > 0 else 0.0
 
-    return PredictionResponse.from_orm(prediction)
+    # Recent trend: count of predictions per day for the last 7 days
+    today = datetime.utcnow().date()
+    recent_trend = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        day_start = datetime.combine(day, datetime.min.time())
+        day_end = day_start + timedelta(days=1)
+        count = db.query(Prediction).filter(
+            Prediction.user_id == current_user.id,
+            Prediction.created_at >= day_start,
+            Prediction.created_at < day_end,
+        ).count()
+        recent_trend.append({
+            "date": day.isoformat(),
+            "count": count,
+        })
+
+    return PredictionStats(
+        total_predictions=total,
+        normal_count=normal_count,
+        pneumonia_count=pneumonia_count,
+        average_confidence=round(average_confidence, 4),
+        accuracy=round(accuracy, 4),
+        recent_trend=recent_trend,
+    )
 
 
 @router.get("/stats/summary", response_model=PredictionSummary)
@@ -215,6 +261,24 @@ async def get_prediction_summary(
         total_pneumonia=pneumonia_count,
         recent_predictions=[PredictionResponse.from_orm(p) for p in recent],
     )
+
+
+@router.get("/{prediction_id}", response_model=PredictionResponse)
+async def get_prediction(
+    prediction_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get a specific prediction by ID."""
+    prediction = db.query(Prediction).filter(
+        Prediction.id == prediction_id,
+        Prediction.user_id == current_user.id,
+    ).first()
+
+    if not prediction:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prediction not found")
+
+    return PredictionResponse.from_orm(prediction)
 
 
 @router.delete("/{prediction_id}")
@@ -245,34 +309,6 @@ async def delete_prediction(
     return {"message": "Prediction deleted successfully"}
 
 
-@router.get("/stats/summary", response_model=PredictionSummary)
-async def get_prediction_summary(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Get prediction summary for dashboard."""
-    predictions = db.query(Prediction).filter(Prediction.user_id == current_user.id).all()
-
-    total = len(predictions)
-    normal_count = sum(1 for p in predictions if p.prediction == PredictionResult.NORMAL)
-    pneumonia_count = sum(1 for p in predictions if p.prediction == PredictionResult.PNEUMONIA)
-
-    recent = (
-        db.query(Prediction)
-        .filter(Prediction.user_id == current_user.id)
-        .order_by(desc(Prediction.created_at))
-        .limit(5)
-        .all()
-    )
-
-    return PredictionSummary(
-        total_predictions=total,
-        total_normal=normal_count,
-        total_pneumonia=pneumonia_count,
-        recent_predictions=[PredictionResponse.from_orm(p) for p in recent],
-    )
-
-
 @router.post("/{prediction_id}/review")
 async def review_prediction(
     prediction_id: uuid.UUID,
@@ -294,3 +330,4 @@ async def review_prediction(
     db.commit()
 
     return {"message": "Prediction reviewed successfully"}
+

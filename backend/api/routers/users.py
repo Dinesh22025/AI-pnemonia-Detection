@@ -22,7 +22,13 @@ router = APIRouter()
 @router.get("/me", response_model=UserResponse)
 async def get_profile(current_user: User = Depends(get_current_user)):
     """Get current user's profile information."""
-    return UserResponse.model_validate(current_user)
+    return UserResponse.from_orm(current_user)
+
+
+@router.get("/profile", response_model=UserResponse)
+async def get_profile_alias(current_user: User = Depends(get_current_user)):
+    """Alias for /users/profile - get current user's profile information."""
+    return UserResponse.from_orm(current_user)
 
 
 @router.put("/me")
@@ -36,6 +42,20 @@ async def update_profile(
         current_user.name = name
     db.commit()
     return {"message": "Profile updated successfully"}
+
+
+@router.put("/name")
+async def update_name(
+    name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update current user's display name."""
+    if not name or not name.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name cannot be empty")
+    current_user.name = name.strip()
+    db.commit()
+    return {"message": "Name updated successfully", "name": current_user.name}
 
 
 @router.post("/change-password")
