@@ -1,0 +1,74 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Dependencies
+node_modules
+frontend/node_modules
+backend/venv
+venv
+.venv
+
+# Environment files
+.env
+.env.local
+.env.*.local
+frontend/.env*
+backend/.env
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Large deep learning datasets & checkpoints
+deep_learning/dataset/
+deep_learning/logs/
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.onnx
+*.pb
+*.keras
+*.tflite
+
+# Uploads & reports
+uploads/
+reports/
+static/generated/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Build outputs
+frontend/.next/
+frontend/out/
+dist/
+build/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker/ssl/*
+!docker/ssl/.gitkeep
+

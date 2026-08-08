@@ -28,9 +28,17 @@ export default function LoginPage() {
       dispatch(setUser(user));
       toast.success(`Welcome back, ${user.name}!`);
       
-      router.push(user.role === 'admin' ? '/admin' : '/dashboard');
+router.push(user.role === 'admin' ? '/admin' : '/dashboard');
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Login failed');
+      // Handle both string detail and array of validation error objects (422)
+      let message = 'Login failed';
+      const detail = err.response?.data?.detail;
+      if (typeof detail === 'string') {
+        message = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        message = detail.map((d: any) => d?.msg).filter(Boolean).join(', ') || message;
+      }
+      toast.error(message);
     } finally {
       setLoading(false);
     }

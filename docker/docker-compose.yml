@@ -12,7 +12,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
     healthcheck:
@@ -53,12 +52,16 @@ services:
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-pneumovision-super-secret-key}
       DEBUG: "false"
+      # Paths inside the container (backend code lives in /app)
+      MODEL_PATH: /deep_learning/model.keras
+      UPLOAD_DIR: /uploads
     env_file:
       - ../backend/.env
     volumes:
-      - ../uploads:/app/uploads
-      - ../static:/app/static
-      - ../logs:/app/logs
+      - ../uploads:/uploads
+      - ../static:/static
+      - ../logs:/logs
+      - ../reports:/reports
     ports:
       - "8000:8000"
     healthcheck:
@@ -79,10 +82,13 @@ services:
       - backend
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Next.js standalone binds to $HOSTNAME if set; force 0.0.0.0 to listen on all interfaces
+      HOSTNAME: "0.0.0.0"
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      # wget --spider not in alpine node image; use node http with IPv4 127.0.0.1
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000',(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       start_period: 30s
@@ -104,7 +110,7 @@ services:
       - ./ssl:/etc/nginx/ssl:ro
       - ../static:/usr/share/nginx/html/static:ro
       - ../uploads:/usr/share/nginx/html/uploads:ro
-    command: '/bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'
+    command: ["nginx", "-g", "daemon off;"]
 
 volumes:
   postgres_data:

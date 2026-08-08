@@ -49,9 +49,17 @@ export default function SignupPage() {
       dispatch(setUser(user));
       toast.success('Account created successfully!');
       
-      router.push('/dashboard');
+router.push('/dashboard');
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Registration failed');
+      // Handle both string detail and array of validation error objects (422)
+      let message = 'Registration failed';
+      const detail = err.response?.data?.detail;
+      if (typeof detail === 'string') {
+        message = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        message = detail.map((d: any) => d?.msg).filter(Boolean).join(', ') || message;
+      }
+      toast.error(message);
     } finally {
       setLoading(false);
     }

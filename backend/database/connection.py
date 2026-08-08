@@ -12,8 +12,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Force SQLite for local development
-DATABASE_URL = "sqlite:///./pneumovision.db"
+# Use DATABASE_URL from environment (Docker/PostgreSQL) with SQLite fallback
+# for local development.
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///./pneumovision.db",
+)
+
+# Detect if we are using SQLite (for connect_args compatibility)
+_IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False)
@@ -43,9 +50,12 @@ def init_db():
     after the engine is created.
     """
     from sqlalchemy import create_engine as _create_engine
+    engine_kwargs = {}
+    if _IS_SQLITE:
+        engine_kwargs["connect_args"] = {"check_same_thread": False}
     engine = _create_engine(
         DATABASE_URL,
-        connect_args={"check_same_thread": False},
+        **engine_kwargs,
         echo=os.getenv("DEBUG", "False").lower() == "true",
     )
     Base.metadata.create_all(bind=engine)
@@ -56,8 +66,8 @@ def init_db():
 def drop_db():
     """Drop all tables - use with caution."""
     from sqlalchemy import create_engine as _create_engine
-    engine = _create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False},
-    )
+    engine_kwargs = {}
+    if _IS_SQLITE:
+        engine_kwargs["connect_args"] = {"check_same_thread": False}
+    engine = _create_engine(DATABASE_URL, **engine_kwargs)
     Base.metadata.drop_all(bind=engine)

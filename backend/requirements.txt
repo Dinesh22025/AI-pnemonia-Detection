@@ -9,8 +9,13 @@ psycopg2-binary
 alembic
 
 # Authentication
+# Note: bcrypt must stay <4.1 because passlib 1.7.4 breaks with bcrypt >=4.1
+# (it tries to read `bcrypt.__about__.__version__` which was removed).
+# bcrypt 5.x raises "module 'bcrypt' has no attribute '__about__'" at runtime,
+# which breaks password hashing on registration/login.
 python-jose[cryptography]
 passlib[bcrypt]
+bcrypt<4.1
 python-dotenv
 
 # AI/ML
