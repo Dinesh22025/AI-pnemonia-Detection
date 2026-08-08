@@ -1,0 +1,6 @@
+# Heavy AI/ML dependencies - installed separately in Docker
+# to isolate the large TensorFlow download from the rest (more reliable builds
+# on unstable networks, and allows retry-loops for just these packages).
+tensorflow
+tensorflow-hub
+opencv-python

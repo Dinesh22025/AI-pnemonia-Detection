@@ -1,0 +1,4 @@
+# Place SSL certificates here for production HTTPS.
+# Mounted into nginx at /etc/nginx/ssl.
+# Expected files: fullchain.pem, privkey.pem
+

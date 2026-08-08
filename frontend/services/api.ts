@@ -64,11 +64,22 @@ api.interceptors.response.use(
       }
     }
 
-    // Handle other errors
-    const message =
-      (error.response?.data as any)?.detail ||
-      error.message ||
-      'An unexpected error occurred';
+// Handle other errors
+    const detail = (error.response?.data as any)?.detail;
+    let message =
+      error.message || 'An unexpected error occurred';
+
+    // FastAPI returns `detail` as either a string or an array of
+    // validation error objects (e.g. 422). react-hot-toast requires a
+    // string, so coerce the array into a readable message.
+    if (typeof detail === 'string') {
+      message = detail;
+    } else if (Array.isArray(detail)) {
+      message = detail
+        .map((d: any) => d?.msg)
+        .filter(Boolean)
+        .join(', ') || message;
+    }
 
     if (error.response?.status !== 401) {
       toast.error(message);
